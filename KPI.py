@@ -3,112 +3,91 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 
-st.set_page_config(page_title="KPI Intelligence Dashboard", layout="wide")
+st.set_page_config(page_title="Data Analytics Platform", layout="wide")
 
-st.title("📊 KPI Intelligence & Root Cause Analysis System")
+# ------------------------
+# UI HEADER
+# ------------------------
+st.markdown("""
+<h1 style='text-align:center; color:#4CAF50;'>📊 Self-Service Data Analytics Platform</h1>
+""", unsafe_allow_html=True)
 
-# -------------------------
-# Generate Sample Data
-# -------------------------
-np.random.seed(42)
+# ------------------------
+# FILE UPLOAD
+# ------------------------
+uploaded_file = st.file_uploader("📂 Upload your dataset (CSV)", type=["csv"])
 
-data = pd.DataFrame({
-    'date': pd.date_range(start='2023-01-01', periods=200),
-    'region': np.random.choice(['North', 'South', 'East', 'West'], 200),
-    'product': np.random.choice(['A', 'B', 'C'], 200),
-    'revenue': np.random.randint(1000, 5000, 200),
-    'orders': np.random.randint(10, 100, 200)
-})
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
 
-# -------------------------
-# Sidebar Filters
-# -------------------------
-st.sidebar.header("🔍 Filters")
+    st.success("✅ Data Loaded Successfully")
 
-selected_region = st.sidebar.multiselect(
-    "Select Region", options=data['region'].unique(), default=data['region'].unique()
-)
+    # ------------------------
+    # BASIC INFO
+    # ------------------------
+    st.subheader("📌 Dataset Overview")
+    st.write(df.head())
 
-selected_product = st.sidebar.multiselect(
-    "Select Product", options=data['product'].unique(), default=data['product'].unique()
-)
+    # ------------------------
+    # DATA CLEANING
+    # ------------------------
+    df = df.dropna()
 
-filtered_data = data[
-    (data['region'].isin(selected_region)) &
-    (data['product'].isin(selected_product))
-]
+    # ------------------------
+    # SIDEBAR FILTERS
+    # ------------------------
+    st.sidebar.header("🔍 Filters")
 
-# -------------------------
-# KPI Section
-# -------------------------
-total_revenue = filtered_data['revenue'].sum()
-total_orders = filtered_data['orders'].sum()
+    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+    categorical_cols = df.select_dtypes(include='object').columns.tolist()
 
-col1, col2 = st.columns(2)
+    # Select columns
+    selected_col = st.sidebar.selectbox("Select Numeric Column", numeric_cols)
 
-col1.metric("💰 Total Revenue", f"{total_revenue:,}")
-col2.metric("📦 Total Orders", f"{total_orders:,}")
+    # ------------------------
+    # KPI SECTION
+    # ------------------------
+    st.subheader("📊 Key Metrics")
 
-# -------------------------
-# Trend Analysis
-# -------------------------
-st.subheader("📈 Revenue Trend")
+    col1, col2, col3 = st.columns(3)
 
-trend = filtered_data.groupby('date')['revenue'].sum().reset_index()
+    col1.metric("Total Rows", len(df))
+    col2.metric("Mean Value", round(df[selected_col].mean(), 2))
+    col3.metric("Max Value", df[selected_col].max())
 
-fig = px.line(trend, x='date', y='revenue', title='Revenue Over Time')
-st.plotly_chart(fig, use_container_width=True)
+    # ------------------------
+    # VISUALIZATION
+    # ------------------------
+    st.subheader("📈 Data Visualization")
 
-# -------------------------
-# Revenue Change Detection
-# -------------------------
-recent = filtered_data.tail(7)['revenue'].sum()
-previous = filtered_data.tail(14).head(7)['revenue'].sum()
+    chart_type = st.selectbox("Select Chart Type", ["Line", "Bar", "Histogram"])
 
-if previous != 0:
-    change = ((recent - previous) / previous) * 100
-else:
-    change = 0
-
-st.subheader("📉 Revenue Change Analysis")
-st.metric("Last 7 Days vs Previous 7 Days", f"{change:.2f}%")
-
-# -------------------------
-# Root Cause Analysis
-# -------------------------
-st.subheader("🔍 Root Cause Analysis")
-
-recent_data = filtered_data.tail(7)
-previous_data = filtered_data.tail(14).head(7)
-
-recent_region = recent_data.groupby('region')['revenue'].sum()
-previous_region = previous_data.groupby('region')['revenue'].sum()
-
-comparison = pd.DataFrame({
-    'recent': recent_region,
-    'previous': previous_region
-}).fillna(0)
-
-comparison['change_%'] = ((comparison['recent'] - comparison['previous']) / comparison['previous']) * 100
-comparison = comparison.replace([np.inf, -np.inf], 0)
-
-st.dataframe(comparison)
-
-# -------------------------
-# Visualization
-# -------------------------
-fig2 = px.bar(comparison.reset_index(), x='region', y='change_%',
-              title='Revenue Change % by Region')
-
-st.plotly_chart(fig2, use_container_width=True)
-
-# -------------------------
-# Insight Generator
-# -------------------------
-st.subheader("💡 Automated Insights")
-
-for index, row in comparison.iterrows():
-    if row['change_%'] < 0:
-        st.warning(f"⚠️ Revenue decline in {index}: {row['change_%']:.2f}%")
+    if chart_type == "Line":
+        fig = px.line(df, y=selected_col)
+    elif chart_type == "Bar":
+        fig = px.bar(df, y=selected_col)
     else:
-        st.success(f"✅ Growth in {index}: {row['change_%']:.2f}%")
+        fig = px.histogram(df, x=selected_col)
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ------------------------
+    # CORRELATION HEATMAP
+    # ------------------------
+    st.subheader("🔥 Correlation Analysis")
+
+    if len(numeric_cols) > 1:
+        corr = df[numeric_cols].corr()
+        fig2 = px.imshow(corr, text_auto=True)
+        st.plotly_chart(fig2, use_container_width=True)
+
+    # ------------------------
+    # INSIGHTS GENERATOR
+    # ------------------------
+    st.subheader("💡 Insights")
+
+    st.write(f"Average {selected_col} is {round(df[selected_col].mean(),2)}")
+    st.write(f"Highest {selected_col} is {df[selected_col].max()}")
+
+else:
+    st.info("👆 Upload a CSV file to begin")
